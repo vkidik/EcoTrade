@@ -1,11 +1,6 @@
-const MEXC = require('mexc-api-sdk');
 const WebSocket = require('ws');
 const config = require('./config');
-const { sendTelegramMessage, executeWithRetries } = require('./utils');
-
-const client = new MEXC.Spot();
-client.config.apiKey = config.API_KEY;
-client.config.apiSecret = config.API_SECRET;
+const { sendTelegramMessage, executeWithRetries, startTelegramListener } = require('./utils');
 
 let priceHistory = [];
 
@@ -19,24 +14,23 @@ class TradingBot {
         this.symbol = config.SYMBOL;
         this.pair = config.SYMBOL_PAIR;
         this.activeOrders = [];
+        this.client = config.MEXC_CLIENT
     }
 
     async getBalance(asset) {
         try {
-            const balances = await executeWithRetries(() => client.accountInfo());
+            const balances = await executeWithRetries(() => this.client.accountInfo());
             const balanceInfo = balances.balances.find(b => b.asset === asset);
-            await sendTelegramMessage(`Баланс: ${balanceInfo ? balanceInfo.free : 0} ${asset}`);
             return parseFloat(balanceInfo ? balanceInfo.free : 0);
         } catch (error) {
             console.error('Ошибка при получении баланса:', error);
-            await sendTelegramMessage(`Ошибка при получении баланса: ${error.message}`);
             throw error;
         }
     }
 
     async getOpenOrders(symbol) {
         try {
-            const openOrders = await executeWithRetries(() => client.openOrders(symbol));
+            const openOrders = await executeWithRetries(() => this.client.openOrders(symbol));
             return openOrders;
         } catch (error) {
             console.error('Ошибка при получении открытых ордеров:', error);
@@ -47,18 +41,28 @@ class TradingBot {
     async calculateDynamicQuantity(asset, price) {
         try {
             const balance = await this.getBalance(asset);
-            const openOrders = await this.getOpenOrders(`${this.symbol+this.pair}`);
-
+            const openOrders = await this.getOpenOrders(`${this.symbol + this.pair}`);
+    
             let reservedBalance = openOrders.reduce((acc, order) => {
                 return acc + parseFloat(order.origQty) - parseFloat(order.executedQty);
             }, 0);
-
+    
             const availableBalance = balance - reservedBalance;
-
+    
             if (availableBalance > 0) {
                 const volatilityFactor = Math.max(this.buyPercentageDrop, this.sellPercentageRise) / 100;
-                const riskFactor = 0.05 + (0.1 * volatilityFactor);
-                const quantity = (availableBalance * riskFactor) / price;
+                const riskFactor = 0.1 + (0.1 * volatilityFactor); // Increase the base risk factor to 0.1
+                let quantity = (availableBalance * riskFactor) / price;
+    
+                // Set a minimum quantity based on the minimum order value (1 USDT)
+                const minimumOrderValue = 1; // 1 USDT
+                const minimumQuantity = minimumOrderValue / price;
+    
+                // Ensure the quantity is above the minimum required for a 1 USDT order
+                if (quantity < minimumQuantity) {
+                    return 0; // Return 0 if quantity is too small
+                }
+    
                 return quantity > 0 ? quantity : 0;
             }
             return 0;
@@ -67,55 +71,57 @@ class TradingBot {
             throw error;
         }
     }
-
+    
     async placeBuyOrder(price) {
         try {
-            const quantity = await this.calculateDynamicQuantity(`${this.pair}`, price);
-            const orderValue = quantity * price;
-
-            if (orderValue >= 1) {  // Ensure the order value is at least 1 USDT
-                const order = await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'BUY', 'MARKET', {
-                    quantity: quantity.toFixed(2),
-                    price: price.toFixed(4),
-                    timeInForce: 'GTC'
-                }));
-                this.activeOrders.push(order.orderId);
-                await sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
-            } else {
+            const quantity = await this.calculateDynamicQuantity(this.pair, price);
+            if (quantity === 0) {
                 console.log(`Ордер не создан. Минимальный объем сделки должен быть не менее 1 ${this.pair}.`);
+                return;
             }
+    
+            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'MARKET', {
+                quantity: quantity.toFixed(2),
+                price: price.toFixed(4),
+                timeInForce: 'GTC'
+            }));
+            const orderValue = quantity * price;
+            this.activeOrders.push(order.orderId);
+            await sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на покупку:', error);
             throw error;
         }
     }
-
+    
     async placeSellOrder(price) {
         try {
-            const quantity = await this.calculateDynamicQuantity(`${this.symbol}`, price);
-            const orderValue = quantity * price;
-
-            if (orderValue >= 1) {  // Ensure the order value is at least 1 USDT
-                const order = await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'SELL', 'LIMIT', {
-                    quantity: quantity.toFixed(2),
-                    price: price.toFixed(4),
-                    timeInForce: 'GTC'
-                }));
-                this.activeOrders.push(order.orderId);
-                const profit = orderValue - (await this.getBalance(`${this.pair}`));
-                await sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(10)} ${this.pair}\nID ордера: ${order.orderId}`);
-            } else {
+            const quantity = await this.calculateDynamicQuantity(this.symbol, price);
+            if (quantity === 0) {
                 console.log(`Ордер не создан. Минимальный объем сделки должен быть не менее 1 ${this.pair}.`);
+                return;
             }
+    
+            const initialBalance = await this.getBalance(this.pair);
+            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'SELL', 'LIMIT', {
+                quantity: quantity.toFixed(2),
+                price: price.toFixed(4),
+                timeInForce: 'GTC'
+            }));
+            const finalBalance = await this.getBalance(this.pair);
+            const profit = finalBalance - initialBalance;
+            const orderValue = quantity * price;
+            this.activeOrders.push(order.orderId);
+            await sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(6)} ${this.pair}\nID ордера: ${order.orderId}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на продажу:', error);
             throw error;
         }
-    }
+    }    
 
     async cancelOrder(orderId) {
         try {
-            const result = await executeWithRetries(() => client.cancelOrder(`${this.symbol+this.pair}`, orderId));
+            const result = await executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
             if (result.status === 'CANCELED') {
                 await sendTelegramMessage(`Ордер ${orderId} был отменен.`);
             }
@@ -163,7 +169,6 @@ class TradingBot {
 
             const priceChange = ((newPrice - priceHistory[priceHistory.length - 2]) / priceHistory[priceHistory.length - 2]) * 100;
             console.log(`Текущая цена: ${newPrice} ${this.pair}, Изменение: ${priceChange.toFixed(2)}%`);
-            // await sendTelegramMessage(`Текущая цена: ${newPrice} ${this.pair}, Изменение: ${priceChange.toFixed(2)}%`);
 
             if (shortTermSMA > longTermSMA) {
                 if (priceChange <= -this.buyPercentageDrop) {
@@ -176,7 +181,7 @@ class TradingBot {
             }
 
             // Проверка на исполнение активных ордеров
-            const openOrders = await this.getOpenOrders(`${this.symbol+this.pair}`);
+            const openOrders = await this.getOpenOrders(`${this.symbol + this.pair}`);
             const closedOrders = this.activeOrders.filter(orderId => !openOrders.find(o => o.orderId === orderId));
 
             for (const orderId of closedOrders) {
@@ -193,7 +198,7 @@ class TradingBot {
             this.ws.send(JSON.stringify({
                 method: "SUBSCRIPTION",
                 params: [
-                    `spot@public.deals.v3.api@${this.symbol+this.pair}`
+                    `spot@public.deals.v3.api@${this.symbol + this.pair}`
                 ],
                 id: 1
             }));
@@ -243,6 +248,7 @@ class TradingBot {
     startBot() {
         try {
             this.startWebSocket();
+            startTelegramListener();
             console.log('Бот запущен');
             sendTelegramMessage('Бот запущен');
         } catch (error) {
