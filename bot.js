@@ -97,6 +97,14 @@ class TradingBot {
     async placeSellOrder(price) {
         try {
             const quantity = await this.calculateDynamicQuantity(this.symbol, price);
+    
+            // Проверка доступного баланса перед созданием ордера
+            const availableBalance = await this.getBalance(this.symbol);
+            if (quantity > availableBalance) {
+                console.log(`Недостаточно средств для создания ордера. Доступно: ${availableBalance}, необходимо: ${quantity}`);
+                return;
+            }
+    
             if (quantity === 0) {
                 console.log(`Ордер не создан. Минимальный объем сделки должен быть не менее 1 ${this.pair}.`);
                 return;
@@ -117,7 +125,7 @@ class TradingBot {
             console.error('Ошибка при создании ордера на продажу:', error);
             throw error;
         }
-    }    
+    }
 
     async cancelOrder(orderId) {
         try {
