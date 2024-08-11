@@ -6,8 +6,6 @@ const { sendTelegramMessage, executeWithRetries } = require('./utils');
 const client = new MEXC.Spot();
 client.config.apiKey = config.API_KEY;
 client.config.apiSecret = config.API_SECRET;
-console.log(client);
-
 
 let priceHistory = [];
 
@@ -18,8 +16,9 @@ class TradingBot {
         this.attempt = 0;
         this.pingInterval = null;
         this.ws = null;
-        this.symbol = config.SYMBOL
-        this.pair = config.SYMBOL_PAIR
+        this.symbol = config.SYMBOL;
+        this.pair = config.SYMBOL_PAIR;
+        this.activeOrders = [];
     }
 
     async getBalance(asset) {
@@ -73,45 +72,58 @@ class TradingBot {
         try {
             const quantity = await this.calculateDynamicQuantity(`${this.pair}`, price);
             const orderValue = quantity * price;
-    
+
             if (orderValue >= 1) {  // Ensure the order value is at least 1 USDT
-                await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'BUY', 'LIMIT', {
+                const order = await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'BUY', 'MARKET', {
                     quantity: quantity.toFixed(2),
                     price: price.toFixed(4),
                     timeInForce: 'GTC'
                 }));
-                await sendTelegramMessage(`Создан ордер на покупку ${quantity.toFixed(2)} ${this.symbol} по цене ${price.toFixed(4)} ${this.pair}`);
+                this.activeOrders.push(order.orderId);
+                await sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
             } else {
                 console.log(`Ордер не создан. Минимальный объем сделки должен быть не менее 1 ${this.pair}.`);
-                // await sendTelegramMessage('Ордер не создан. Минимальный объем сделки должен быть не менее 1 USDT.');
             }
         } catch (error) {
             console.error('Ошибка при создании ордера на покупку:', error);
             throw error;
         }
     }
-    
+
     async placeSellOrder(price) {
         try {
             const quantity = await this.calculateDynamicQuantity(`${this.symbol}`, price);
             const orderValue = quantity * price;
-    
+
             if (orderValue >= 1) {  // Ensure the order value is at least 1 USDT
-                await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'SELL', 'LIMIT', {
+                const order = await executeWithRetries(() => client.newOrder(`${this.symbol+this.pair}`, 'SELL', 'LIMIT', {
                     quantity: quantity.toFixed(2),
                     price: price.toFixed(4),
                     timeInForce: 'GTC'
                 }));
-                await sendTelegramMessage(`Создан ордер на продажу ${quantity.toFixed(2)} ${this.symbol} по цене ${price.toFixed(4)} ${this.pair}`);
+                this.activeOrders.push(order.orderId);
+                const profit = orderValue - (await this.getBalance(`${this.pair}`));
+                await sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(10)} ${this.pair}\nID ордера: ${order.orderId}`);
             } else {
                 console.log(`Ордер не создан. Минимальный объем сделки должен быть не менее 1 ${this.pair}.`);
-                // await sendTelegramMessage('Ордер не создан. Минимальный объем сделки должен быть не менее 1 USDT.');
             }
         } catch (error) {
             console.error('Ошибка при создании ордера на продажу:', error);
             throw error;
         }
-    }    
+    }
+
+    async cancelOrder(orderId) {
+        try {
+            const result = await executeWithRetries(() => client.cancelOrder(`${this.symbol+this.pair}`, orderId));
+            if (result.status === 'CANCELED') {
+                await sendTelegramMessage(`Ордер ${orderId} был отменен.`);
+            }
+        } catch (error) {
+            console.error('Ошибка при отмене ордера:', error);
+            throw error;
+        }
+    }
 
     calculateSMA(prices, period) {
         if (prices.length >= period) {
@@ -136,9 +148,7 @@ class TradingBot {
             this.sellPercentageRise = volatility / 2;
 
             console.log(`Анализ волатильности: ${volatility.toFixed(2)}%`);
-            // sendTelegramMessage(`Анализ волатильности: ${volatility.toFixed(2)}%`)
             console.log(`Уровень покупки: ${this.buyPercentageDrop.toFixed(2)}%, Уровень продажи: ${this.sellPercentageRise.toFixed(2)}%`);
-            // sendTelegramMessage(`Уровень покупки: ${this.buyPercentageDrop.toFixed(2)}%, Уровень продажи: ${this.sellPercentageRise.toFixed(2)}%`)
         }
     }
 
@@ -150,11 +160,10 @@ class TradingBot {
 
         if (shortTermSMA && longTermSMA) {
             console.log(`Краткосрочный SMA: ${shortTermSMA.toFixed(4)}, Долгосрочный SMA: ${longTermSMA.toFixed(4)}`);
-            // sendTelegramMessage(`Краткосрочный SMA: ${shortTermSMA.toFixed(4)}, Долгосрочный SMA: ${longTermSMA.toFixed(4)}`);
 
             const priceChange = ((newPrice - priceHistory[priceHistory.length - 2]) / priceHistory[priceHistory.length - 2]) * 100;
             console.log(`Текущая цена: ${newPrice} ${this.pair}, Изменение: ${priceChange.toFixed(2)}%`);
-            sendTelegramMessage(`Текущая цена: ${newPrice} ${this.pair}, Изменение: ${priceChange.toFixed(2)}%`);
+            // await sendTelegramMessage(`Текущая цена: ${newPrice} ${this.pair}, Изменение: ${priceChange.toFixed(2)}%`);
 
             if (shortTermSMA > longTermSMA) {
                 if (priceChange <= -this.buyPercentageDrop) {
@@ -164,6 +173,15 @@ class TradingBot {
                 if (priceChange >= this.sellPercentageRise) {
                     await this.placeSellOrder(newPrice);
                 }
+            }
+
+            // Проверка на исполнение активных ордеров
+            const openOrders = await this.getOpenOrders(`${this.symbol+this.pair}`);
+            const closedOrders = this.activeOrders.filter(orderId => !openOrders.find(o => o.orderId === orderId));
+
+            for (const orderId of closedOrders) {
+                this.activeOrders = this.activeOrders.filter(id => id !== orderId);
+                await sendTelegramMessage(`Ордер ${orderId} исполнен!`);
             }
         }
     }
@@ -183,7 +201,6 @@ class TradingBot {
             sendTelegramMessage('Подключение к WebSocket установлено и подписка на обновления цены активирована');
             this.attempt = 0; // Сброс счетчика попыток
 
-            // Отправляем ping каждые 3 секунд, чтобы поддерживать соединение активным
             this.pingInterval = setInterval(() => {
                 this.ws.send(JSON.stringify({
                     method: "PING",
@@ -194,10 +211,8 @@ class TradingBot {
 
         this.ws.on('message', (data) => {
             const parsedData = JSON.parse(data);
-            // console.log(parsedData)
             if (parsedData && parsedData.d && parsedData.d.deals.length > 0) {
                 const newPrice = parseFloat(parsedData.d.deals[0].p);
-                // sendTelegramMessage(`Получено новое ценовое предложение: ${newPrice}`);
                 console.log(`Новая цена: ${newPrice}`);
                 this.handlePriceUpdate(newPrice);
             }
@@ -212,27 +227,6 @@ class TradingBot {
         this.ws.on('close', (code) => {
             console.log(`Соединение WebSocket закрыто с кодом ${code}`);
             sendTelegramMessage(`Соединение WebSocket закрыто с кодом ${code}`);
-
-            // Обрабатываем различные коды закрытия
-            switch (code) {
-                case 1000:
-                    console.log("Соединение нормально закрыто");
-                    break;
-                case 1001:
-                    console.log("Клиент уходит (страница/приложение закрыто)");
-                    break;
-                case 1002:
-                    console.log("Протокол WebSocket нарушен");
-                    break;
-                case 1003:
-                    console.log("Получен неподдерживаемый тип данных");
-                    break;
-                case 1006:
-                    console.log("Неожиданное закрытие соединения");
-                    break;
-                default:
-                    console.log("Неизвестный код закрытия");
-            }
 
             clearInterval(this.pingInterval); // Останавливаем отправку ping
             this.handleReconnection();
@@ -249,7 +243,7 @@ class TradingBot {
     startBot() {
         try {
             this.startWebSocket();
-            console.log('Бот запущен')
+            console.log('Бот запущен');
             sendTelegramMessage('Бот запущен');
         } catch (error) {
             console.error('Ошибка запуска бота:', error);
