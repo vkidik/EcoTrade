@@ -1,20 +1,7 @@
-const axios = require('axios');
+const { Telegraf } = require('telegraf');
 const config = require('./config');
 
-const client = config.MEXC_CLIENT 
-
-async function sendTelegramMessage(message) {
-    const url = `https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/sendMessage`;
-    try {
-        await axios.post(url, {
-            chat_id: config.TELEGRAM_CHAT_ID,
-            text: message
-        });
-        console.log('Сообщение отправлено в Telegram:', message);
-    } catch (error) {
-        console.error('Ошибка при отправке сообщения в Telegram:', error);
-    }
-}
+const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
 async function executeWithRetries(fn, maxRetries = config.MAX_RETRIES, retryDelay = config.RETRY_DELAY) {
     for (let i = 0; i < maxRetries; i++) {
@@ -32,56 +19,44 @@ async function executeWithRetries(fn, maxRetries = config.MAX_RETRIES, retryDela
     }
 }
 
-let lastUpdateId = null;
+async function sendTelegramMessage(message) {
+    try {
+        await bot.telegram.sendMessage(config.TELEGRAM_CHAT_ID, message);
+        console.log('Сообщение отправлено в Telegram:', message);
+    } catch (error) {
+        console.error('Ошибка при отправке сообщения в Telegram:', error);
+    }
+}
 
-async function getBalancesCommand() {
+async function getBalancesCommand(ctx) {
     try {
         const usdtBalance = await getBalance('USDT');
         const kasBalance = await getBalance('KAS');
         const message = `Баланс USDT: ${usdtBalance} USDT\nБаланс KAS: ${kasBalance} KAS`;
 
         await sendTelegramMessage(message);
+        ctx.reply(message);
     } catch (error) {
         console.error('Ошибка при выполнении команды получения баланса:', error);
+        ctx.reply('Ошибка при получении баланса.');
     }
 }
 
-async function getBalance(asset) {
-    try {
-        const balances = await executeWithRetries(() => client.accountInfo());
-        const balanceInfo = balances.balances.find(b => b.asset === asset);
-        return parseFloat(balanceInfo ? balanceInfo.free : 0);
-    } catch (error) {
-        console.error('Ошибка при получении баланса:', error);
-        throw error;
-    }
-}
+async function startTelegramListener() {
+    bot.start((ctx) => ctx.reply('Добро пожаловать! Используйте команду /balance для проверки баланса.'));
+    
+    bot.command('balance', async (ctx) => {
+        await getBalancesCommand(ctx);
+    });
 
-async function handleTelegramUpdates() {
-    try {
-        const url = `https://api.telegram.org/bot${config.TELEGRAM_BOT_TOKEN}/getUpdates?offset=${lastUpdateId || ''}`;
-        const response = await axios.get(url);
-        const updates = response.data.result;
-
-        for (const update of updates) {
-            lastUpdateId = update.update_id + 1;
-            const message = update.message;
-
-            if (message && message.text) {
-                if (message.text.toLowerCase() === '/balance') {
-                    await getBalancesCommand();
-                } else {
-                    await sendTelegramMessage('Неизвестная команда. Используйте /balance для проверки баланса.');
-                }
-            }
+    bot.on('text', async (ctx) => {
+        if (ctx.message.text.toLowerCase() !== '/balance') {
+            await sendTelegramMessage('Неизвестная команда. Используйте /balance для проверки баланса.');
+            ctx.reply('Неизвестная команда. Используйте /balance для проверки баланса.');
         }
-    } catch (error) {
-        console.error('Ошибка при обработке сообщений Telegram:', error);
-    }
-}
+    });
 
-function startTelegramListener(config, interval = 3000) {
-    setInterval(() => handleTelegramUpdates(config), interval);
+    bot.launch();
 }
 
 module.exports = {

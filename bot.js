@@ -80,7 +80,7 @@ class TradingBot {
                 return;
             }
     
-            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'MARKET', {
+            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'LIMIT', {
                 quantity: quantity.toFixed(2),
                 price: price.toFixed(4),
                 timeInForce: 'GTC'
@@ -202,7 +202,7 @@ class TradingBot {
     startWebSocket() {
         this.ws = new WebSocket(`wss://wbs.mexc.com/ws?listenKey=`);
 
-        this.ws.on('open', () => {
+        this.ws.on('open', async () => {
             this.ws.send(JSON.stringify({
                 method: "SUBSCRIPTION",
                 params: [
@@ -211,7 +211,7 @@ class TradingBot {
                 id: 1
             }));
             console.log('Подключение к WebSocket установлено и подписка на обновления цены активирована');
-            sendTelegramMessage('Подключение к WebSocket установлено и подписка на обновления цены активирована');
+            await sendTelegramMessage('Подключение к WebSocket установлено и подписка на обновления цены активирована');
             this.attempt = 0; // Сброс счетчика попыток
 
             this.pingInterval = setInterval(() => {
@@ -231,15 +231,15 @@ class TradingBot {
             }
         });
 
-        this.ws.on('error', (err) => {
+        this.ws.on('error', async (err) => {
             console.error('Ошибка WebSocket:', err);
-            sendTelegramMessage(`Ошибка WebSocket: ${err.message}`);
+            await sendTelegramMessage(`Ошибка WebSocket: ${err.message}`);
             this.handleReconnection();
         });
 
-        this.ws.on('close', (code) => {
+        this.ws.on('close', async (code) => {
             console.log(`Соединение WebSocket закрыто с кодом ${code}`);
-            sendTelegramMessage(`Соединение WebSocket закрыто с кодом ${code}`);
+            await sendTelegramMessage(`Соединение WebSocket закрыто с кодом ${code}`);
 
             clearInterval(this.pingInterval); // Останавливаем отправку ping
             this.handleReconnection();
@@ -253,15 +253,15 @@ class TradingBot {
         setTimeout(() => this.startWebSocket(), delay);
     }
 
-    startBot() {
+    async startBot() {
         try {
             this.startWebSocket();
-            startTelegramListener();
+            await startTelegramListener();
             console.log('Бот запущен');
-            sendTelegramMessage('Бот запущен');
+            await sendTelegramMessage('Бот запущен');
         } catch (error) {
             console.error('Ошибка запуска бота:', error);
-            sendTelegramMessage(`Ошибка запуска бота: ${error.message}`);
+            await sendTelegramMessage(`Ошибка запуска бота: ${error.message}`);
             setTimeout(() => this.startBot(), 5000);
         }
     }
