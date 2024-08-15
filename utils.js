@@ -6,6 +6,7 @@ const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 class Utils {
     constructor(botFarm) {
         this.botFarm = botFarm;
+        this.ts = Date.now();
 
         this.startFunctions();
     }
@@ -40,11 +41,10 @@ class Utils {
     async getBalancesCommand(ctx) {
         try {
             const usdtBalance = await this.botFarm.getBalance('USDT');
-            const btcBalance = await this.botFarm.getBalance('BTC');
             const kasBalance = await this.botFarm.getBalance('KAS');
-            const message = `Баланс USDT: ${usdtBalance} USDT\n
-                             Баланс KAS: ${kasBalance} KAS
-                             Баланс BTC: ${btcBalance} BTC`;
+            const message = `
+            Баланс USDT: ${usdtBalance} USDT\n
+            Баланс KAS: ${kasBalance} KAS\n`;
 
             ctx.reply(message);
         } catch (error) {
@@ -59,6 +59,21 @@ class Utils {
         bot.command('balance', async (ctx) => {
             await this.getBalancesCommand(ctx);
         });
+
+        bot.command('check', async (ctx) => {
+            const profit = this.botFarm.profitBalance;
+
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - this.ts; 
+            const elapsedHours = Math.floor(elapsedTime / (1000 * 60 * 60)); 
+            const elapsedMinutes = Math.floor((elapsedTime % (1000 * 60 * 60)) / (1000 * 60)); 
+
+            ctx.reply(`
+                Прибыль: ${profit} USDT\n
+                -----------------------\n
+                Работает уже: ${elapsedHours} часов и ${elapsedMinutes} минут
+            `);
+        });
     
         bot.on('text', async (ctx) => {
             if (ctx.message.text.toLowerCase() !== '/balance') {
@@ -71,4 +86,4 @@ class Utils {
     }
 }
 
-module.exports = Utils
+module.exports = Utils;
