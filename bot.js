@@ -87,7 +87,7 @@ class TradingBot {
                 timeInForce: 'GTC'
             }));
             const orderValue = quantity * price;
-            this.activeOrders.push(order.orderId);
+            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
             await this.utils.sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на покупку:', error);
@@ -121,7 +121,7 @@ class TradingBot {
             const finalBalance = await this.getBalance(this.pair);
             const profit = finalBalance - initialBalance;
             const orderValue = quantity * price;
-            this.activeOrders.push(order.orderId);
+            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
             await this.utils.sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(6)} ${this.pair}\nID ордера: ${order.orderId}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на продажу:', error);
@@ -132,7 +132,10 @@ class TradingBot {
     async cancelOrder(orderId) {
         try {
             const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
-            if (result.status === 'CANCELED') await this.utils.sendTelegramMessage(`Ордер ${orderId} был отменен.`)
+            if (result.status === 'CANCELED') {
+                await this.utils.sendTelegramMessage(`Ордер ${orderId} был отменен.`);
+                this.activeOrders = this.activeOrders.filter(o => o.orderId !== orderId); // Удалить отменённый ордер из списка активных ордеров
+            }
         } catch (error) {
             console.error('Ошибка при отмене ордера:', error);
             throw error;
@@ -184,11 +187,23 @@ class TradingBot {
 
             // Проверка на исполнение активных ордеров
             const openOrders = await this.getOpenOrders(`${this.symbol + this.pair}`);
-            const closedOrders = this.activeOrders.filter(orderId => !openOrders.find(o => o.orderId === orderId));
+            const closedOrders = this.activeOrders.filter(order => !openOrders.find(o => o.orderId === order.orderId));
 
-            for (const orderId of closedOrders) {
-                this.activeOrders = this.activeOrders.filter(id => id !== orderId);
-                await this.utils.sendTelegramMessage(`Ордер ${orderId} исполнен!`);
+            for (const order of closedOrders) {
+                this.activeOrders = this.activeOrders.filter(o => o.orderId !== order.orderId);
+                await this.utils.sendTelegramMessage(`Ордер ${order.orderId} исполнен!`);
+            }
+
+            // Отмена неактуальных и долго стоящих ордеров
+            const currentTime = Date.now();
+            for (const order of this.activeOrders) {
+                const timeElapsed = (currentTime - order.timestamp) / 1000 / 60; // время в минутах
+
+                // Отменяем ордер, если он стоит более 10 минут или если его цена неактуальна
+                if (timeElapsed > 20) {
+                    console.log(`Отмена ордера ${order.orderId} из-за долгого времени ожидания`);
+                    await this.cancelOrder(order.orderId);
+                }
             }
         }
     }
