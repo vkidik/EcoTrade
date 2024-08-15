@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 const config = require('./config');
-const { sendTelegramMessage, executeWithRetries, startTelegramListener } = require('./utils');
+const Utils = require('./utils');
 
 let priceHistory = [];
 
@@ -15,11 +15,13 @@ class TradingBot {
         this.pair = config.SYMBOL_PAIR;
         this.activeOrders = [];
         this.client = config.MEXC_CLIENT
+
+        this.utils = null
     }
 
     async getBalance(asset) {
         try {
-            const balances = await executeWithRetries(() => this.client.accountInfo());
+            const balances = await this.utils.executeWithRetries(() => this.client.accountInfo());
             const balanceInfo = balances.balances.find(b => b.asset === asset);
             return parseFloat(balanceInfo ? balanceInfo.free : 0);
         } catch (error) {
@@ -30,7 +32,7 @@ class TradingBot {
 
     async getOpenOrders(symbol) {
         try {
-            const openOrders = await executeWithRetries(() => this.client.openOrders(symbol));
+            const openOrders = await this.utils.executeWithRetries(() => this.client.openOrders(symbol));
             return openOrders;
         } catch (error) {
             console.error('Ошибка при получении открытых ордеров:', error);
@@ -59,9 +61,7 @@ class TradingBot {
                 const minimumQuantity = minimumOrderValue / price;
     
                 // Ensure the quantity is above the minimum required for a 1 USDT order
-                if (quantity < minimumQuantity) {
-                    return 0; // Return 0 if quantity is too small
-                }
+                if (quantity < minimumQuantity) return 0
     
                 return quantity > 0 ? quantity : 0;
             }
@@ -80,14 +80,15 @@ class TradingBot {
                 return;
             }
     
-            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'LIMIT', {
+            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'MARKET', {
                 quantity: quantity.toFixed(2),
                 price: price.toFixed(4),
+                recvWindow: 5000,  // 5 секунд
                 timeInForce: 'GTC'
             }));
             const orderValue = quantity * price;
             this.activeOrders.push(order.orderId);
-            await sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
+            await this.utils.sendTelegramMessage(`КУПЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на покупку:', error);
             throw error;
@@ -111,16 +112,17 @@ class TradingBot {
             }
     
             const initialBalance = await this.getBalance(this.pair);
-            const order = await executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'SELL', 'LIMIT', {
+            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'SELL', 'LIMIT', {
                 quantity: quantity.toFixed(2),
                 price: price.toFixed(4),
+                recvWindow: 5000,  // 5 секунд
                 timeInForce: 'GTC'
             }));
             const finalBalance = await this.getBalance(this.pair);
             const profit = finalBalance - initialBalance;
             const orderValue = quantity * price;
             this.activeOrders.push(order.orderId);
-            await sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(6)} ${this.pair}\nID ордера: ${order.orderId}`);
+            await this.utils.sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(6)} ${this.pair}\nID ордера: ${order.orderId}`);
         } catch (error) {
             console.error('Ошибка при создании ордера на продажу:', error);
             throw error;
@@ -129,10 +131,8 @@ class TradingBot {
 
     async cancelOrder(orderId) {
         try {
-            const result = await executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
-            if (result.status === 'CANCELED') {
-                await sendTelegramMessage(`Ордер ${orderId} был отменен.`);
-            }
+            const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
+            if (result.status === 'CANCELED') await this.utils.sendTelegramMessage(`Ордер ${orderId} был отменен.`)
         } catch (error) {
             console.error('Ошибка при отмене ордера:', error);
             throw error;
@@ -140,18 +140,12 @@ class TradingBot {
     }
 
     calculateSMA(prices, period) {
-        if (prices.length >= period) {
-            const sma = prices.slice(-period).reduce((acc, price) => acc + price, 0) / period;
-            return sma;
-        }
-        return null;
+        return prices.length >= period ? prices.slice(-period).reduce((acc, price) => acc + price, 0) / period : null
     }
 
     updatePriceHistory(newPrice) {
         priceHistory.push(newPrice);
-        if (priceHistory.length > config.HISTORY_LENGTH) {
-            priceHistory.shift();
-        }
+        if (priceHistory.length > config.HISTORY_LENGTH) priceHistory.shift()
 
         if (priceHistory.length === config.HISTORY_LENGTH) {
             const maxPrice = Math.max(...priceHistory);
@@ -194,13 +188,13 @@ class TradingBot {
 
             for (const orderId of closedOrders) {
                 this.activeOrders = this.activeOrders.filter(id => id !== orderId);
-                await sendTelegramMessage(`Ордер ${orderId} исполнен!`);
+                await this.utils.sendTelegramMessage(`Ордер ${orderId} исполнен!`);
             }
         }
     }
 
     startWebSocket() {
-        this.ws = new WebSocket(`wss://wbs.mexc.com/ws?listenKey=`);
+        this.ws = new WebSocket(`wss://wbs.mexc.com/ws`);
 
         this.ws.on('open', async () => {
             this.ws.send(JSON.stringify({
@@ -211,7 +205,7 @@ class TradingBot {
                 id: 1
             }));
             console.log('Подключение к WebSocket установлено и подписка на обновления цены активирована');
-            await sendTelegramMessage('Подключение к WebSocket установлено и подписка на обновления цены активирована');
+            await this.utils.sendTelegramMessage('Подключение к WebSocket установлено и подписка на обновления цены активирована');
             this.attempt = 0; // Сброс счетчика попыток
 
             this.pingInterval = setInterval(() => {
@@ -233,13 +227,13 @@ class TradingBot {
 
         this.ws.on('error', async (err) => {
             console.error('Ошибка WebSocket:', err);
-            await sendTelegramMessage(`Ошибка WebSocket: ${err.message}`);
+            await this.utils.sendTelegramMessage(`Ошибка WebSocket: ${err.message}`);
             this.handleReconnection();
         });
 
         this.ws.on('close', async (code) => {
             console.log(`Соединение WebSocket закрыто с кодом ${code}`);
-            await sendTelegramMessage(`Соединение WebSocket закрыто с кодом ${code}`);
+            await this.utils.sendTelegramMessage(`Соединение WebSocket закрыто с кодом ${code}`);
 
             clearInterval(this.pingInterval); // Останавливаем отправку ping
             this.handleReconnection();
@@ -254,14 +248,17 @@ class TradingBot {
     }
 
     async startBot() {
+        this.utils = new Utils(this);
+
         try {
             this.startWebSocket();
-            await startTelegramListener();
             console.log('Бот запущен');
-            await sendTelegramMessage('Бот запущен');
+            await this.utils.sendTelegramMessage('Бот запущен');
         } catch (error) {
             console.error('Ошибка запуска бота:', error);
-            await sendTelegramMessage(`Ошибка запуска бота: ${error.message}`);
+            await this.utils.sendTelegramMessage(`Ошибка запуска бота: ${error.message}`);
+            this.utils = null
+
             setTimeout(() => this.startBot(), 5000);
         }
     }
