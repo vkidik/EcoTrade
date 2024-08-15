@@ -15,6 +15,7 @@ class TradingBot {
         this.pair = config.SYMBOL_PAIR;
         this.activeOrders = [];
         this.client = config.MEXC_CLIENT
+        this.profitBalance = 0;
 
         this.utils = null
     }
@@ -49,7 +50,8 @@ class TradingBot {
                 return acc + parseFloat(order.origQty) - parseFloat(order.executedQty);
             }, 0);
     
-            const availableBalance = balance - reservedBalance;
+            // Исключаем резервный баланс из доступного баланса
+            const availableBalance = balance - reservedBalance - this.profitBalance;
     
             if (availableBalance > 0) {
                 const volatilityFactor = Math.max(this.buyPercentageDrop, this.sellPercentageRise) / 100;
@@ -120,6 +122,9 @@ class TradingBot {
             }));
             const finalBalance = await this.getBalance(this.pair);
             const profit = finalBalance - initialBalance;
+
+            this.profitBalance += profit;
+
             const orderValue = quantity * price;
             this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
             await this.utils.sendTelegramMessage(`ВЫСТАВЛЕНО ${quantity.toFixed(2)} ${this.symbol}\nПо цене: ${price.toFixed(4)} ${this.pair}\nСумма сделки: ${(orderValue).toFixed(6)}\nПрофит в итоге: ${profit.toFixed(6)} ${this.pair}\nID ордера: ${order.orderId}`);
