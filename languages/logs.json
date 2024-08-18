@@ -80,8 +80,8 @@
         "enMessage": "Balance:"
     },
     "PROFIT": {
-        "ruMessage": "Прибыль: {profit} {pair}",
-        "enMessage": "Profit: {profit} {pair}"
+        "ruMessage": "Приыль:",
+        "enMessage": "Profit:"
     },
     "TIME_OF_WORK":{
         "ruMessage": "Время работы: {time}",

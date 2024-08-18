@@ -18,7 +18,6 @@ class TradingBot {
         this.client = config.MEXC_CLIENT
         this.profitBalance = 0;
 
-        this.state
         this.language = ''
         this.utils = null
     }
@@ -29,7 +28,7 @@ class TradingBot {
             const balanceInfo = balances.balances.find(b => b.asset === asset);
             return parseFloat(balanceInfo ? balanceInfo.free : 0);
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_GET_BALANCE", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_GET_BALANCE", {error}));
             throw error;
         }
     }
@@ -39,7 +38,7 @@ class TradingBot {
             const openOrders = await this.utils.executeWithRetries(() => this.client.openOrders(symbol));
             return openOrders;
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_GET_OPEN_ORDERS", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_GET_OPEN_ORDERS", {error}));
             throw error;
         }
     }
@@ -69,7 +68,7 @@ class TradingBot {
             }
             return 0;
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_QUANTITY_CALCULATION", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_QUANTITY_CALCULATION", {error}));
             throw error;
         }
     }
@@ -78,7 +77,7 @@ class TradingBot {
         try {
             const quantity = await this.calculateDynamicQuantity(this.pair, price);
             if (quantity === 0) {
-                console.log(`${this.utils.getMessage(this.language, 'error', "ORDER_NOT_CREATED")} ${this.utils.getMessage(this.language, 'error', "ERROR_MINIMUM_PRICE", {
+                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ERROR_MINIMUM_PRICE", {
                     count: this.minPrice,
                     symbol: this.pair
                 })}`);
@@ -93,15 +92,15 @@ class TradingBot {
             }));
             const orderValue = quantity * price;
             this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
-            await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "PLACE_ORDER_BUY", {
+            await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "PLACE_ORDER_BUY", {
                 quantity: quantity.toFixed(2),
                 symbol: this.symbol,
-                pricece: price.toFixed(4),
+                price: price.toFixed(4),
                 pair: this.pair,
                 orderValue: orderValue.toFixed(6)
             }));
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_CREATING_ORDER", {
+            console.error(this.utils.getMessage('error', "ERROR_CREATING_ORDER", {
                 error,
                 type: this.language == "en" ? "buy": "покупку",
             }));
@@ -115,12 +114,12 @@ class TradingBot {
 
             const availableBalance = await this.getBalance(this.symbol);
             if (quantity > availableBalance) {
-                console.log(`${this.utils.getMessage(this.language, 'error', "ORDER_NOT_CREATED")} ${this.utils.getMessage(this.language, 'logs', "NOT_AT_NEED", {availableBalance, quantity})});`)
+                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('logs', "NOT_AT_NEED", {availableBalance, quantity})});`)
                 return;
             }
     
             if (quantity === 0) {
-                console.log(`${this.utils.getMessage(this.language, 'error', "ORDER_NOT_CREATED")} ${this.utils.getMessage(this.language, 'error', "ORDER_NOT_CREATED")} ${this.utils.getMessage(this.language, 'error', "ERROR_MINIMUM_PRICE", {
+                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ERROR_MINIMUM_PRICE", {
                     count: this.minPrice,
                     symbol: this.pair
                 })}`);
@@ -141,7 +140,7 @@ class TradingBot {
 
             const orderValue = quantity * price;
             this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
-            await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "PLACE_ORDER_SELL", {
+            await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "PLACE_ORDER_SELL", {
                 quantity: quantity.toFixed(2),
                 symbol: this.symbol,
                 price: price.toFixed(4),
@@ -151,7 +150,7 @@ class TradingBot {
                 orderId: order.orderId
             }))
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_CREATING_ORDER", {
+            console.error(this.utils.getMessage('error', "ERROR_CREATING_ORDER", {
                 error,
                 type: this.language == "en" ? "sale": "продажу",
             }));
@@ -163,11 +162,11 @@ class TradingBot {
         try {
             const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
             if (result.status === 'CANCELED') {
-                await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "ORDER_CANCELLED", {orderId}));
+                await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "ORDER_CANCELLED", {orderId}));
                 this.activeOrders = this.activeOrders.filter(o => o.orderId !== orderId);
             }
         } catch (error) {
-            console.error(this.utils.getMessage(this.language, 'error', "ERROR_CANCELING_ORDER", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_CANCELING_ORDER", {error}));
             throw error;
         }
     }
@@ -186,9 +185,9 @@ class TradingBot {
             this.buyPercentageDrop = volatility / 2;
             this.sellPercentageRise = volatility / 2;
 
-            console.log(this.utils.getMessage(this.language, 'logs', "VOLATILITI_ANALYSIS", {volatility: volatility.toFixed(2)}))
-            console.log(this.utils.getMessage(this.language, 'logs', "PURCHASE_LVL", {purchaseLevel: this.buyPercentageDrop.toFixed(2)}))
-            console.log(this.utils.getMessage(this.language, 'logs', "SALES_LVL", {salesLevel: this.sellPercentageRise.toFixed(2)}))
+            console.log(this.utils.getMessage('logs', "VOLATILITI_ANALYSIS", {volatility: volatility.toFixed(2)}))
+            console.log(this.utils.getMessage('logs', "PURCHASE_LVL", {purchaseLevel: this.buyPercentageDrop.toFixed(2)}))
+            console.log(this.utils.getMessage('logs', "SALES_LVL", {salesLevel: this.sellPercentageRise.toFixed(2)}))
         }
     }
 
@@ -198,14 +197,14 @@ class TradingBot {
         const shortTermSMA = this.calculateSMA(priceHistory, 5);
         const longTermSMA = this.calculateSMA(priceHistory, 18);
 
-        if (shortTermSMA && longTermSMA) {
-            console.log(`${this.utils.getMessage(this.language, 'logs', "SHORT_SMA", {shortSma: shortTermSMA.toFixed(4)})}, ${this.utils.getMessage(this.language, 'logs', "LONG_SMA", {longSma: longTermSMA.toFixed(4)})}`)
+        if (shortTermSMA && longTermSMA && this.utils.state) {
+            console.log(`${this.utils.getMessage('logs', "SHORT_SMA", {shortSma: shortTermSMA.toFixed(4)})}, ${this.utils.getMessage('logs', "LONG_SMA", {longSma: longTermSMA.toFixed(4)})}`)
 
             const priceChange = ((newPrice - priceHistory[priceHistory.length - 2]) / priceHistory[priceHistory.length - 2]) * 100;
-            console.log(`${this.utils.getMessage(this.language, 'logs', "CURRENT_PRICE", {
+            console.log(`${this.utils.getMessage('logs', "CURRENT_PRICE", {
                 currentPrice: newPrice,
                 pair: this.pair,
-            })}, ${this.utils.getMessage(this.language, 'logs', "CHANGED_PRICE", {
+            })}, ${this.utils.getMessage('logs', "CHANGED_PRICE", {
                 changedPrice: priceChange.toFixed(2),
             })}`)
 
@@ -224,7 +223,7 @@ class TradingBot {
 
             for (const order of closedOrders) {
                 this.activeOrders = this.activeOrders.filter(o => o.orderId !== order.orderId);
-                await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "ORDER_FILLED", {orderId: order.orderId}));
+                await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "ORDER_FILLED", {orderId: order.orderId}));
             }
 
             const currentTime = Date.now();
@@ -232,7 +231,7 @@ class TradingBot {
                 const timeElapsed = (currentTime - order.timestamp) / 1000 / 60;
 
                 if (timeElapsed > 20) {
-                    console.log(this.utils.getMessage(this.language, 'logs', "CANCEL_ORDER_LONG_TIME", {orderId: order.orderId}));
+                    console.log(this.utils.getMessage('logs', "CANCEL_ORDER_LONG_TIME", {orderId: order.orderId}));
                     await this.cancelOrder(order.orderId);
                 }
             }
@@ -250,8 +249,8 @@ class TradingBot {
                 ],
                 id: 1
             }));
-            console.log(this.utils.getMessage(this.language, 'logs', "START_WEBSOCKET"));
-            await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "START_WEBSOCKET"))
+            console.log(this.utils.getMessage('logs', "START_WEBSOCKET"));
+            await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "START_WEBSOCKET"))
             this.attempt = 0;
 
             this.pingInterval = setInterval(() => {
@@ -266,19 +265,12 @@ class TradingBot {
             const parsedData = JSON.parse(data);
             if (parsedData && parsedData.d && parsedData.d.deals.length > 0) {
                 const newPrice = parseFloat(parsedData.d.deals[0].p);
-                console.log("AAAAAA " + newPrice);
-
-
-                if(this.utils.state == true) {
-                    console.log(this.utils.state, newPrice);
-                    
-                    this.handlePriceUpdate(newPrice);
-                }
+                this.handlePriceUpdate(newPrice);
             }
         });
 
         this.ws.on('error', async (error) => {
-            const err = this.utils.getMessage(this.language, 'error', "ERROR_WEBSOCKET", {error})
+            const err = this.utils.getMessage('error', "ERROR_WEBSOCKET", {error})
             console.error(err);
 
             await this.utils.sendTelegramMessage(err);
@@ -290,25 +282,25 @@ class TradingBot {
             let message = '' 
             switch (code) {
                 case 1000:
-                    message = this.utils.getMessage(this.language, 'error', "1000_WS_ERROR");
+                    message = this.utils.getMessage('error', "1000_WS_ERROR");
                     break;
                 case 1001:
-                    message = this.utils.getMessage(this.language, 'error', "1001_WS_ERROR");
+                    message = this.utils.getMessage('error', "1001_WS_ERROR");
                     break;
                 case 1002:
-                    message = this.utils.getMessage(this.language, 'error', "1002_WS_ERROR");
+                    message = this.utils.getMessage('error', "1002_WS_ERROR");
                     break;
                 case 1003:
-                    message = this.utils.getMessage(this.language, 'error', "1003_WS_ERROR");
+                    message = this.utils.getMessage('error', "1003_WS_ERROR");
                     break;
                 case 1006:
-                    message = this.utils.getMessage(this.language, 'error', "1006_WS_ERROR");
+                    message = this.utils.getMessage('error', "1006_WS_ERROR");
                     break;
                 default:
-                    message = this.utils.getMessage(this.language, 'error', "DEFAULT_WS_ERROR");
+                    message = this.utils.getMessage('error', "DEFAULT_WS_ERROR");
             }
 
-            const err = this.utils.getMessage(this.language, 'error', "WEBSOCKET_CONNECTION_CLOSED", {
+            const err = this.utils.getMessage('error', "WEBSOCKET_CONNECTION_CLOSED", {
                 code,
                 message
             });
@@ -323,21 +315,20 @@ class TradingBot {
     handleReconnection() {
         this.attempt++;
         const delay = Math.min(10000, Math.pow(2, this.attempt) * 1000) / 1000;
-        console.log(this.utils.getMessage(this.language, 'error', "ATTEMPTING_RECONNECT", {вудфн}));
+        console.log(this.utils.getMessage('error', "ATTEMPTING_RECONNECT", {вудфн}));
         setTimeout(() => this.startWebSocket(), delay);
     }
 
     async startBot() {
         this.utils = new Utils(this);
-        this.state = this.utils.state
         this.language = this.utils.language 
 
         try {
             this.startWebSocket();
-            console.log(this.utils.getMessage(this.language, 'logs', "BOT_STARTED"));
-            await this.utils.sendTelegramMessage(this.utils.getMessage(this.language, 'logs', "BOT_STARTED"));
+            console.log(this.utils.getMessage('logs', "BOT_STARTED"));
+            await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "BOT_STARTED"));
         } catch (error) {
-            const err = this.utils.getMessage(this.language, 'error', "ERROR_START_BOT", {error})
+            const err = this.utils.getMessage('error', "ERROR_START_BOT", {error})
             console.error(err);
             await this.utils.sendTelegramMessage(err);
             this.utils = null

@@ -8,7 +8,7 @@ CLIENT.config.apiSecret = process.env.API_SECRET;
 module.exports = {
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
     TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID,
-    HISTORY_LENGTH: 20,
+    HISTORY_LENGTH: 25,
     RETRY_DELAY: 2000,
     MAX_RETRIES: 3,
     SYMBOL: "KAS",
