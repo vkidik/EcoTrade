@@ -1,0 +1,86 @@
+{
+    "ERROR_GET_BALANCE":{
+       "ruMessage": "Ошибка при получении баланса: {error}",
+       "enMessage": "Error when receiving balance: {error}"
+    },
+    "ERROR_GET_OPEN_ORDERS":{
+        "ruMessage": "Ошибка при получении открытых ордеров: {error}",
+        "enMessage": "Error when receiving open orders: {error}"
+    },
+    "ERROR_QUANTITY_CALCULATION":{
+        "ruMessage": "Ошибка при расчёте количества: {error}",
+        "enMessage": "Error during quantity calculation: {error}"
+    },
+    "ERROR_CREATING_ORDER": {
+        "ruMessage": "Ошибка при создании ордера {type} на: {error}",
+        "enMessage": "Error when creating {type} order: {error}"
+    },
+    "ORDER_NOT_CREATED":{
+        "ruMessage": "Ордер не создан.",
+        "enMessage": "Order not created."
+    },
+    "ERROR_MINIMUM_PRICE": {
+        "ruMessage": "Минимальный объем сделки должен быть не менее {count} {symbol}",
+        "enMessage": "The minimum transaction volume should be not less than {count} {symbol}"
+    },
+    "INSUFFICIENT_FUNDS": {
+        "ruMessage": "Недостаточно средств для создания ордера.",
+        "enMessage": "Insufficient funds to create an order."
+    },
+    "ERROR_CANCELING_ORDER":{
+        "ruMessage": "Ошибка при отмене ордера: {error}",
+        "enMessage": "Error when canceling an order: {error}"
+    },
+    "ERROR_WEBSOCKET":{
+        "ruMessage": "Ошибка WebSocket: {error}",
+        "enMessage": "WebSocket error: {error}"
+    },
+    "WEBSOCKET_CONNECTION_CLOSED": {
+        "ruMessage": "Соединение WebSocket закрыто с кодом: {code} - {message}",
+        "enMessage": "WebSocket connection closed with code: {code} - {message}"
+    },
+    "ATTEMPTING_RECONNECT":{
+        "ruMessage": "Попытка переподключения через {delay} секунд...",
+        "enMessage": "Attempting to reconnect after {delay} seconds..."
+    },
+    "ERROR_START_BOT": {
+        "ruMessage": "Ошибка при запуске бота: {error}",
+        "enMessage": "Error when starting the bot: {error}"
+    },
+    "ERROR_OF_№_RETRY": {
+        "ruMessage": "Ошибка попытки {retry}: {error}",
+        "enMessage": "{retry} attempt error: {error}"
+    },
+    "ERROR_OF_SENDING_TELEGRAM_MESSAGE":{
+        "ruMessage":"Ошибка отправки сообщения Telegram: {error}",
+        "enMessage":"Error sending Telegram message: {error}"
+    },
+    "ERROR_TELEGRAM_COMMAND": {
+        "ruMessage": "Неизвестная команда. Используйте /list для списка команд",
+        "enMessage": "Unknown command. Use /list to list commands"
+    },
+    "1000_WS_ERROR": {
+        "ruMessage": "Соединение нормально закрыто",
+        "enMessage": "Connection is closed"
+    },
+    "1001_WS_ERROR":{
+        "ruMessage": "Клиент уходит (страница/приложение закрыто)",
+        "enMessage": "Client leaves (page/application closed)"
+    },
+    "1002_WS_ERROR":{
+        "ruMessage": "Протокол WebSocket нарушен",
+        "enMessage": "WebSocket protocol error"
+    },
+    "1003_WS_ERROR":{
+        "ruMessage": "Получен неподдерживаемый тип данных",
+        "enMessage": "Received unsupported data type"
+    },
+    "1006_WS_ERROR": {
+        "ruMessage": "Неожиданное закрытие соединения",
+        "enMessage": "Unexpected closure of connection"
+    },
+    "DEFAULT_WS_ERROR": {
+        "ruMessage": "Неизвестный код закрытия",
+        "enMessage": "Unknown closure code"
+    }
+}

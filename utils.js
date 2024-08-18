@@ -1,5 +1,8 @@
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 const config = require('./config');
+
+const errors = require('./languages/errors.json')
+const logs = require('./languages/logs.json')
 
 const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
@@ -8,19 +11,44 @@ class Utils {
         this.botFarm = botFarm;
         this.ts = Date.now();
 
+        this.language = ''
+        this.state = false
+
         this.startFunctions();
     }
 
+    getMessage(language, type, name, vars = {}) {
+        const messageVar = type == 'error' ? errors : logs
+
+        let message = ''
+        if(language == 'ru') {
+            message = messageVar[name]["ruMessage"]
+        } else if(language == 'en') {
+            message = messageVar[name]["enMessage"]
+        } else {
+            message = `
+${messageVar[name]["enMessage"]}
+-----------------------------------------
+${messageVar[name]["ruMessage"]}` 
+        }
+        
+        return message.replace(/{(\w+)}/g, (match, p1) => vars[p1] || match);
+    }
+
     async startFunctions() {await this.startTelegramListener()};
+
 
     async executeWithRetries(fn, maxRetries = config.MAX_RETRIES, retryDelay = config.RETRY_DELAY) {
         for (let i = 0; i < maxRetries; i++) {
             try {
                 return await fn();
             } catch (error) {
-                console.error(`Ошибка попытки ${i + 1}: ${error.message}`);
+                let retry = i + 1;
+
+                const err = this.getMessage(this.language, 'error', "ERROR_OF_№_RETRY", {retry, error})
+                console.error(err);
                 if (i < maxRetries - 1) {
-                    await this.sendTelegramMessage(`Ошибка попытки ${i + 1}: ${error.message}. Повторная попытка...`);
+                    await this.sendTelegramMessage(err);
                     await new Promise(resolve => setTimeout(resolve, retryDelay));
                 } else {
                     throw error;
@@ -32,54 +60,102 @@ class Utils {
     async sendTelegramMessage(message) {
         try {
             await bot.telegram.sendMessage(config.TELEGRAM_CHAT_ID, message);
-            console.log('Сообщение отправлено в Telegram:', message);
         } catch (error) {
-            console.error('Ошибка при отправке сообщения в Telegram:', error);
+            console.error(this.getMessage(this.language, 'error', "ERROR_OF_SENDING_TELEGRAM_MESSAGE", {error}));
         }
     }
     
     async getBalancesCommand(ctx) {
         try {
-            const usdtBalance = await this.botFarm.getBalance('USDT');
-            const kasBalance = await this.botFarm.getBalance('KAS');
+            const balance_pair = await this.botFarm.getBalance(this.botFarm.pair);
+            const balance_symbol = await this.botFarm.getBalance(this.botFarm.symbol);
             const message = `
-            Баланс USDT: ${usdtBalance} USDT\n
-            Баланс KAS: ${kasBalance} KAS\n`;
+            Баланс: 
+-- ${balance_pair} ${this.botFarm.pair}
+-- ${balance_symbol} ${this.botFarm.symbol}`;
 
             ctx.reply(message);
         } catch (error) {
-            console.error('Ошибка при выполнении команды получения баланса:', error);
-            ctx.reply('Ошибка при получении баланса.');
+            console.error(this.getMessage(this.language, 'error', "ERROR_GET_BALANCE", {error}));
+            ctx.reply(this.getMessage(this.language, 'error', "ERROR_GET_BALANCE", {error: error.message}));
         }
     }
     
     async startTelegramListener() {
-        bot.start((ctx) => ctx.reply('Добро пожаловать! Используйте команду /balance для проверки баланса.'));
+        bot.start((ctx) => ctx.reply(this.getMessage(this.language, 'logs', "START_COMMNAND")));
+
+        bot.command('help', async (ctx) => {ctx.reply(this.getMessage(this.language, 'logs', 'HELP_COMMAND'))})
+
+        bot.command('start_trading', async (ctx) => {
+            if(this.language == ''){
+                ctx.reply(this.getMessage(this.language, 'logs', "NOT_SELECTED_LANGUAGE"))
+            } else{
+                this.state = true
+                ctx.reply(this.getMessage(this.language, 'logs', 'BOT_STARTED'));
+            }
+        })
         
+        bot.command('stop_trading', async (ctx) => {
+            this.state = false
+            ctx.reply(this.getMessage(this.language, 'logs', 'BOT_STOPPED'));
+        })
+
+        /////////    /////////    /////////    /////////    /////////    /////////    
+        bot.command('language', async (ctx) => {
+            ctx.reply(this.getMessage(this.language, 'logs', 'SELECT_LANGUAGE'), Markup.inlineKeyboard([
+                [Markup.button.callback('Русский(RU)', 'lanRu')],
+                [Markup.button.callback('English(EN)', 'lanEn')],
+            ]));
+
+        })
+        bot.action('lanRu', async (ctx) => {
+            this.language = 'ru'
+            await ctx.reply(this.getMessage(this.language, 'logs', "CHANGED_LANGUAGE"));
+            await ctx.deleteMessage();
+        });
+        
+        bot.action('lanEn', async (ctx) => {
+            this.language = 'en'
+            await ctx.reply(this.getMessage(this.language, 'logs', "CHANGED_LANGUAGE"));
+            await ctx.deleteMessage();
+        });
+        /////////    /////////    /////////    /////////    /////////    /////////    
+
         bot.command('balance', async (ctx) => {
             await this.getBalancesCommand(ctx);
+        });
+
+        bot.hears(/\/cancel (.+)/, (ctx) => {
+            const id = ctx.match[1];
+            this.botFarm.cancelOrder(id)
+            
+            ctx.reply(this.getMessage(this.language, 'logs', "ORDER_CANCELLED", {orderId: id}));
         });
 
         bot.command('check', async (ctx) => {
             const profit = this.botFarm.profitBalance;
 
-            const currentTime = Date.now();
-            const elapsedTime = currentTime - this.ts; 
+            const elapsedTime = Date.now() - this.ts; 
             const elapsedHours = Math.floor(elapsedTime / (1000 * 60 * 60)); 
             const elapsedMinutes = Math.floor((elapsedTime % (1000 * 60 * 60)) / (1000 * 60)); 
 
+            let stateMes
+            if(this.state == true){
+                stateMes = this.language == 'ru'? 'Работает' : 'Work'
+            } else{ 
+                stateMes = this.language == 'ru'? 'Остановлен' : 'Stopped'
+            }
+
             ctx.reply(`
-                Прибыль: ${profit} USDT\n
-                -----------------------\n
-                Работает уже: ${elapsedHours} часов и ${elapsedMinutes} минут
-            `);
+-- ${this.getMessage(this.language, 'logs', "PROFIT", {profit, pair: this.botFarm.pair})}
+-- ${this.getMessage(this.language, 'logs', "STATE_OF_WORK", {state: stateMes})}
+-- ${this.getMessage(this.language, 'logs', "TIME_OF_WORK", {time: `${elapsedHours}:${elapsedMinutes}`})}`);
         });
     
         bot.on('text', async (ctx) => {
-            if (ctx.message.text.toLowerCase() !== '/balance') {
-                await this.sendTelegramMessage('Неизвестная команда. Используйте /balance для проверки баланса.');
-                ctx.reply('Неизвестная команда. Используйте /balance для проверки баланса.');
-            }
+            const err = this.getMessage(this.language, 'error', "ERROR_TELEGRAM_COMMAND")
+            await this.sendTelegramMessage(err);
+            ctx.reply(err);
         });
     
         bot.launch();

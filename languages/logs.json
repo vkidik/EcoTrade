@@ -1,0 +1,106 @@
+{
+    "PLACE_ORDER_BUY": {
+        "ruMessage": "КУПЛЕНО: {quantity} {symbol}\nПо цене: {price} {pair}\nСумма сделки: {orderValue}",
+        "enMessage": "BOUGHT: {quantity} {symbol}\nPrice: {price} {pair}\nTransaction amount: {orderValue}"
+    },
+    "NOT_AT_NEED": {
+        "ruMessage": "Доступно: {availableBalance}, необходимо: {quantity}",
+        "enMessage": "Available: {availableBalance}, required: {quantity}"
+    },
+    "PLACE_ORDER_SELL": {
+        "ruMessage": "ВЫСТАВЛЕНО: {quantity} {symbol}\nПо цене: {price} {pair}\nСумма сделки: {orderValue}\nПрофит в итоге: {profit} {pair}\nID ордера: {orderId}",
+        "enMessage": "SET FOR: {quantity} {symbol}\nAt price: {price} {pair}\nTransaction amount: {orderValue}\nFinal profit: {profit} {pair}\nOrder ID: {orderId}"
+    },
+    "ORDER_CANCELLED": {
+        "ruMessage": "Ордер {orderId} был отменен",
+        "enMessage": "Order {orderId} canceled."
+    },
+    "VOLATILITI_ANALYSIS": {
+        "ruMessage": "Анализ волатильности: {volatility}%",
+        "enMessage": "Volatility analysis: {volatility}%"
+    },
+    "PURCHASE_LVL": {
+        "ruMessage": "Уровень покупки: {purchaseLevel}%",
+        "enMessage": "Purchase level: {purchaseLevel}%"
+    },
+    "SALES_LVL": {
+        "ruMessage": "Уровень продажи: {salesLevel}%",
+        "enMessage": "Sales level: {salesLevel}%"
+    },
+    "SHORT_SMA": {
+        "ruMessage": "Краткосрочный SMA: {shortSma}",
+        "enMessage": "Short SMA: {shortSma}"
+    },
+    "LONG_SMA": {
+        "ruMessage": "Долгосрочный SMA: {longSma}",
+        "enMessage": "Long SMA: {longSma}"
+    },
+    "CURRENT_PRICE": {
+        "ruMessage": "Текущая цена: {currentPrice} {pair}",
+        "enMessage": "Current price: {currentPrice} {pair}"
+    },
+    "CHANGED_PRICE": {
+        "ruMessage": "Изменение: {changedPrice}%",
+        "enMessage": "Change: {changedPrice}%"
+    },
+    "ORDER_FILLED": {
+        "ruMessage": "Ордер {orderId} исполнен",
+        "enMessage": "Order {orderId} is filled"
+    },
+    "CANCEL_ORDER_LONG_TIME": {
+        "ruMessage": "Отмена ордера: {orderId} по причине длительного ожидания",
+        "enMessage": "Order {orderId} canceled due to long waiting"
+    },
+    "START_WEBSOCKET": {
+        "ruMessage": "Подключение к WebSocket установлено и подписка на обновления цены активирована",
+        "enMessage": "Websocket connection established and subscription to price updates activated"
+    },
+    "BOT_STARTED": {
+        "ruMessage": "Бот запущен",
+        "enMessage": "Bot is started"
+    },
+    "BOT_STOPPED": {
+        "ruMessage": "Бот Остановлен",
+        "enMessage": "Bot is stopped"
+    },
+    "START_COMMNAND": {
+        "ruMessage": "Добро пожаловать! Используйте команду /help для просмотра доступных команд",
+        "enMessage": "Welcome! Use /help for list of available commands"
+    },
+    "HELP_COMMAND": {
+        "ruMessage": "Доступные команды:\n/start_trading - запуск бота\n/stop_trading - остановка бота\n/help - список команд\n/language - Смена языка\n/balance - Просмотр баланса аккаунта\n/check - Просмотр прибыли и часов работы бота",
+        "enMessage": "Available commands:\n/start_trading - start trading\n/stop_trading - stop trading\n/help - list of available commands\n/language - change language\n/balance - view balance\n/check - view profit and working time"
+    },
+    "LANGUAGE_COMMAND": {
+        "ruMessage": "Выберите язык:",
+        "enMessage": "Select a language:"
+    },
+    "BALANCE": {
+        "ruMessage": "Баланс:",
+        "enMessage": "Balance:"
+    },
+    "PROFIT": {
+        "ruMessage": "Прибыль: {profit} {pair}",
+        "enMessage": "Profit: {profit} {pair}"
+    },
+    "TIME_OF_WORK":{
+        "ruMessage": "Время работы: {time}",
+        "enMessage": "Working time: {time}"
+    },
+    "STATE_OF_WORK": {
+        "ruMessage": "Состояние: {state}",
+        "enMessage": "Status: {state}"
+    },
+    "SELECT_LANGUAGE": {
+        "ruMessage": "Выберите язык:",
+        "enMessage": "Select a language:"
+    },
+    "CHANGED_LANGUAGE": {
+        "ruMessage": "Язык изменен",
+        "enMessage": "Language changed"
+    },
+    "NOT_SELECTED_LANGUAGE": {
+        "ruMessage": "Язык не выбран. ДЛя того, чтобы воспользоваться выполните команду /language",
+        "enMessage": "Language is not selected. To use this command, please execute /language"
+    }
+}

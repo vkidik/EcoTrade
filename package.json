@@ -1,12 +1,22 @@
 {
-  "name": "ton-usdt-trading-bot",
-  "version": "1.0.8",
-  "description": "",
+  "name": "kasvibot",
+  "version": "1.0.9",
+  "description": "Crypto-Trading bot on Mexc",
   "main": "main.js",
   "scripts": {
     "start": "node main.js"
   },
-  "keywords": [],
+  "keywords": [
+    "kasvibot",
+    "KasViBot",
+    "Trading Bot",
+    "trading bot",
+    "usdt",
+    "mexc",
+    "mexc bot",
+    "mexc trading bot",
+    "crypto"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
