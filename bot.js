@@ -123,7 +123,7 @@ class TradingBot {
             }
 
             if (quantity === 0) {
-                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ERROR_MINIMUM_PRICE", {
+                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ERROR_MINIMUM_PRICE", {
                     count: this.minPrice,
                     symbol: this.pair
                 })}`);
