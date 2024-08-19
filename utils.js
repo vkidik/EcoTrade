@@ -132,9 +132,8 @@ ${messageVar[name]["ruMessage"]}`
 
         bot.hears(/\/cancel (.+)/, (ctx) => {
             const id = ctx.match[1];
-            this.botFarm.cancelOrder(id)
-            
-            ctx.reply(this.getMessage('logs', "ORDER_CANCELLED", {orderId: id}));
+            const result = this.botFarm.cancelOrder(id)
+            ctx.reply(result);
         });
 
         bot.command('check', async (ctx) => {

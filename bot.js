@@ -176,14 +176,24 @@ class TradingBot {
 
     async cancelOrder(orderId) {
         try {
+            const order = await this.client.getOrder(`${this.symbol + this.pair}`, { orderId });
+            if (order.status === 'CANCELED' || order.status === 'FILLED') {
+                console.log(`Order ${orderId} is already ${order.status}. No need to cancel.`);
+                return;
+            }
+    
             const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, {orderId}));
             if (result.status === 'CANCELED') {
-                await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "ORDER_CANCELLED", { orderId }));
                 this.activeOrders = this.activeOrders.filter(o => o.orderId !== orderId);
+                return this.utils.getMessage('logs', "ORDER_CANCELLED", { orderId });
             }
         } catch (error) {
-            console.error(this.utils.getMessage('error', "ERROR_CANCELING_ORDER", {error}));
-            throw error;
+            if (error.code === -2011) {
+                console.log(`Order ${orderId} is already cancelled.`);
+            } else {
+                console.error(this.utils.getMessage('error', "ERROR_CANCELING_ORDER", {error}));
+                throw this.utils.getMessage('error', "ERROR_CANCELING_ORDER", {error});
+            }
         }
     }
 
