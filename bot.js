@@ -17,6 +17,8 @@ class TradingBot {
         this.activeOrders = [];
         this.client = config.MEXC_CLIENT
         this.profitBalance = 0;
+        this.totalBoughtQuantity = 0;
+        this.totalBoughtCost = 0;
 
         this.language = ''
         this.utils = null
@@ -28,7 +30,7 @@ class TradingBot {
             const balanceInfo = balances.balances.find(b => b.asset === asset);
             return parseFloat(balanceInfo ? balanceInfo.free : 0);
         } catch (error) {
-            console.error(this.utils.getMessage('error', "ERROR_GET_BALANCE", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_GET_BALANCE", { error }));
             throw error;
         }
     }
@@ -38,7 +40,7 @@ class TradingBot {
             const openOrders = await this.utils.executeWithRetries(() => this.client.openOrders(symbol));
             return openOrders;
         } catch (error) {
-            console.error(this.utils.getMessage('error', "ERROR_GET_OPEN_ORDERS", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_GET_OPEN_ORDERS", { error }));
             throw error;
         }
     }
@@ -46,29 +48,29 @@ class TradingBot {
     async calculateDynamicQuantity(asset, price) {
         try {
             const balance = await this.getBalance(asset);
-            const openOrders = await this.getOpenOrders(`${this.symbol + this.pair}`);
-    
+            const openOrders = await this.getOpenOrders(`${this.symbol}${this.pair}`);
+
             let reservedBalance = openOrders.reduce((acc, order) => {
                 return acc + parseFloat(order.origQty) - parseFloat(order.executedQty);
             }, 0);
-    
+
             const availableBalance = balance - reservedBalance - this.profitBalance;
-    
+
             if (availableBalance > 0) {
                 const volatilityFactor = Math.max(this.buyPercentageDrop, this.sellPercentageRise) / 100;
                 const riskFactor = 0.1 + (0.1 * volatilityFactor);
                 let quantity = (availableBalance * riskFactor) / price;
-    
+
                 const minimumOrderValue = this.minPrice; // 1 USDT
                 const minimumQuantity = minimumOrderValue / price;
-    
-                if (quantity < minimumQuantity) return 0
-    
+
+                if (quantity < minimumQuantity) return 0;
+
                 return quantity > 0 ? quantity : 0;
             }
             return 0;
         } catch (error) {
-            console.error(this.utils.getMessage('error', "ERROR_QUANTITY_CALCULATION", {error}));
+            console.error(this.utils.getMessage('error', "ERROR_QUANTITY_CALCULATION", { error }));
             throw error;
         }
     }
@@ -83,15 +85,17 @@ class TradingBot {
                 })}`);
                 return;
             }
-    
-            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'BUY', 'MARKET', {
+
+            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol}${this.pair}`, 'BUY', 'MARKET', {
                 quantity: quantity.toFixed(2),
                 price: price.toFixed(4),
                 recvWindow: 5000,
                 timeInForce: 'GTC'
             }));
             const orderValue = quantity * price;
-            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
+            this.totalBoughtQuantity += quantity;
+            this.totalBoughtCost += orderValue;
+            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now(), quantity, price });
             await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "PLACE_ORDER_BUY", {
                 quantity: quantity.toFixed(2),
                 symbol: this.symbol,
@@ -102,22 +106,22 @@ class TradingBot {
         } catch (error) {
             console.error(this.utils.getMessage('error', "ERROR_CREATING_ORDER", {
                 error,
-                type: this.language == "en" ? "buy": "покупку",
+                type: this.language === "en" ? "buy" : "покупку",
             }));
             throw error;
         }
     }
-    
+
     async placeSellOrder(price) {
         try {
             const quantity = await this.calculateDynamicQuantity(this.symbol, price);
 
             const availableBalance = await this.getBalance(this.symbol);
             if (quantity > availableBalance) {
-                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('logs', "NOT_AT_NEED", {availableBalance, quantity})});`)
+                console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('logs', "NOT_AT_NEED", { availableBalance, quantity })}`);
                 return;
             }
-    
+
             if (quantity === 0) {
                 console.log(`${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ORDER_NOT_CREATED")} ${this.utils.getMessage('error', "ERROR_MINIMUM_PRICE", {
                     count: this.minPrice,
@@ -125,21 +129,19 @@ class TradingBot {
                 })}`);
                 return;
             }
-    
-            const initialBalance = await this.getBalance(this.pair);
-            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol + this.pair}`, 'SELL', 'LIMIT', {
+
+            const order = await this.utils.executeWithRetries(() => this.client.newOrder(`${this.symbol}${this.pair}`, 'SELL', 'LIMIT', {
                 quantity: quantity.toFixed(2),
                 price: price.toFixed(4),
                 recvWindow: 5000,
                 timeInForce: 'GTC'
             }));
-            const finalBalance = await this.getBalance(this.pair);
-            const profit = finalBalance - initialBalance;
-
-            this.profitBalance += profit;
 
             const orderValue = quantity * price;
-            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now() });
+            const profit = this.calculateProfit(quantity, price);
+
+            this.profitBalance += profit;
+            this.activeOrders.push({ orderId: order.orderId, timestamp: Date.now(), quantity, price });
             await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "PLACE_ORDER_SELL", {
                 quantity: quantity.toFixed(2),
                 symbol: this.symbol,
@@ -148,21 +150,35 @@ class TradingBot {
                 orderValue: orderValue.toFixed(6),
                 profit: profit.toFixed(6),
                 orderId: order.orderId
-            }))
+            }));
         } catch (error) {
             console.error(this.utils.getMessage('error', "ERROR_CREATING_ORDER", {
                 error,
-                type: this.language == "en" ? "sale": "продажу",
+                type: this.language === "en" ? "sale" : "продажу",
             }));
             throw error;
         }
     }
 
+    calculateProfit(quantity, sellPrice) {
+        if (this.totalBoughtQuantity === 0) {
+            return 0;
+        }
+
+        const averageBuyPrice = this.totalBoughtCost / this.totalBoughtQuantity;
+        const profit = (sellPrice - averageBuyPrice) * quantity;
+
+        this.totalBoughtQuantity -= quantity;
+        this.totalBoughtCost -= averageBuyPrice * quantity;
+
+        return profit;
+    }
+
     async cancelOrder(orderId) {
         try {
-            const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, orderId));
+            const result = await this.utils.executeWithRetries(() => this.client.cancelOrder(`${this.symbol + this.pair}`, {orderId}));
             if (result.status === 'CANCELED') {
-                await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "ORDER_CANCELLED", {orderId}));
+                await this.utils.sendTelegramMessage(this.utils.getMessage('logs', "ORDER_CANCELLED", { orderId }));
                 this.activeOrders = this.activeOrders.filter(o => o.orderId !== orderId);
             }
         } catch (error) {
@@ -230,7 +246,7 @@ class TradingBot {
             for (const order of this.activeOrders) {
                 const timeElapsed = (currentTime - order.timestamp) / 1000 / 60;
 
-                if (timeElapsed > 20) {
+                if (timeElapsed > 30) {
                     console.log(this.utils.getMessage('logs', "CANCEL_ORDER_LONG_TIME", {orderId: order.orderId}));
                     await this.cancelOrder(order.orderId);
                 }
