@@ -102,5 +102,9 @@
     "NOT_SELECTED_LANGUAGE": {
         "ruMessage": "Язык не выбран. ДЛя того, чтобы воспользоваться выполните команду /language",
         "enMessage": "Language is not selected. To use this command, please execute /language"
+    },
+    "NOT_OWNER_BOT": {
+        "ruMessage": "Вы не являетесь владельцем этого бота",
+        "enMessage": "You are not the owner of this bot"
     }
 }

@@ -4,26 +4,26 @@ const config = require('./config');
 const errors = require('./languages/errors.json')
 const logs = require('./languages/logs.json')
 
-const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
 class Utils {
     constructor(botFarm) {
+        this.bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
         this.botFarm = botFarm;
         this.ts = Date.now();
-
+        this.allowedUserId = config.TELEGRAM_CHAT_ID
         this.language = ''
         this.state = false
 
-        this.startFunctions();
+        this.startTelegramListener()
     }
 
-    getMessage(type, name, vars = {}) {
+    getMessage(type, name, vars = {}, language = this.language) {
         const messageVar = type == 'error' ? errors : logs
 
         let message = ''
-        if(this.language == 'ru') {
+        if(language == 'ru') {
             message = messageVar[name]["ruMessage"]
-        } else if(this.language == 'en') {
+        } else if(language == 'en') {
             message = messageVar[name]["enMessage"]
         } else {
             message = `
@@ -35,9 +35,6 @@ ${messageVar[name]["ruMessage"]}`
         return message.replace(/{(\w+)}/g, (match, p1) => vars[p1] || match);
     }
 
-    async startFunctions() {await this.startTelegramListener()};
-
-
     async executeWithRetries(fn, maxRetries = config.MAX_RETRIES, retryDelay = config.RETRY_DELAY) {
         for (let i = 0; i < maxRetries; i++) {
             try {
@@ -48,7 +45,6 @@ ${messageVar[name]["ruMessage"]}`
                 const err = this.getMessage('error', "ERROR_OF_№_RETRY", {retry, error})
                 console.error(err);
                 if (i < maxRetries - 1) {
-                    // await this.sendTelegramMessage(err);
                     await new Promise(resolve => setTimeout(resolve, retryDelay));
                 } else {
                     throw error;
@@ -80,8 +76,19 @@ ${messageVar[name]["ruMessage"]}`
             ctx.reply(this.getMessage('error', "ERROR_GET_BALANCE", {error: error.message}));
         }
     }
+
+    userCheckMiddleware(ctx, next) {
+        if (ctx.from.id === this.allowedUserId) {
+            return next(); 
+        } else {
+            ctx.reply(this.getMessage('logs', "NOT_OWNER_BOT", {}, ''));
+        }
+    }
     
     async startTelegramListener() {
+        const { bot } = this;
+        bot.use(this.userCheckMiddleware.bind(this));
+
         bot.start((ctx) => ctx.reply(this.getMessage('logs', "START_COMMNAND")));
 
         bot.command('help', async (ctx) => {ctx.reply(this.getMessage('logs', 'HELP_COMMAND'))})

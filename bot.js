@@ -331,7 +331,7 @@ class TradingBot {
     handleReconnection() {
         this.attempt++;
         const delay = Math.min(10000, Math.pow(2, this.attempt) * 1000) / 1000;
-        console.log(this.utils.getMessage('error', "ATTEMPTING_RECONNECT", {вудфн}));
+        console.log(this.utils.getMessage('error', "ATTEMPTING_RECONNECT", {delay}));
         setTimeout(() => this.startWebSocket(), delay);
     }
 
