@@ -1,6 +1,6 @@
 {
   "name": "kasvibot",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Crypto-Trading bot on Mexc",
   "main": "main.js",
   "scripts": {

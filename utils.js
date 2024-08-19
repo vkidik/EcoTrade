@@ -4,13 +4,12 @@ const config = require('./config');
 const errors = require('./languages/errors.json')
 const logs = require('./languages/logs.json')
 
+const bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
 
 class Utils {
     constructor(botFarm) {
-        this.bot = new Telegraf(config.TELEGRAM_BOT_TOKEN);
         this.botFarm = botFarm;
         this.ts = Date.now();
-        this.allowedUserId = config.TELEGRAM_CHAT_ID
         this.language = ''
         this.state = false
 
@@ -78,7 +77,7 @@ ${messageVar[name]["ruMessage"]}`
     }
 
     userCheckMiddleware(ctx, next) {
-        if (ctx.from.id === this.allowedUserId) {
+        if (ctx.from.id == config.TELEGRAM_CHAT_ID) {
             return next(); 
         } else {
             ctx.reply(this.getMessage('logs', "NOT_OWNER_BOT", {}, ''));
@@ -86,7 +85,6 @@ ${messageVar[name]["ruMessage"]}`
     }
     
     async startTelegramListener() {
-        const { bot } = this;
         bot.use(this.userCheckMiddleware.bind(this));
 
         bot.start((ctx) => ctx.reply(this.getMessage('logs', "START_COMMNAND")));
